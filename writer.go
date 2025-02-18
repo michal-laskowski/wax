@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"html/template"
 	"math"
+	"math/big"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -32,11 +34,41 @@ func (w *waxWriter) WriteHTML(v string) *waxWriter {
 	return w
 }
 
+func (w *waxWriter) WriteAttributes(v any) *waxWriter {
+	if toWrite, ok := v.(map[string]any); !ok {
+		panic("expected to get map")
+	} else {
+		for a, v := range toWrite {
+			if a == "children" {
+				continue
+			}
+			w.WriteAttribute(a, v)
+			w.sb.WriteString(" ")
+		}
+	}
+	return w
+}
+
 func (w *waxWriter) WriteAttribute(attributeName string, v any) *waxWriter {
 	switch v := v.(type) {
+
+	case nil:
+		{
+		}
 	case bool:
-		if v {
+		if isBoolEnumerableAttribute(attributeName) {
 			w.sb.WriteString(attributeName)
+			w.sb.WriteString("=\"")
+			if v {
+				w.sb.WriteString("true")
+			} else {
+				w.sb.WriteString("false")
+			}
+			w.sb.WriteString("\"")
+		} else {
+			if v {
+				w.sb.WriteString(attributeName)
+			}
 		}
 
 	case map[string]any:
@@ -49,11 +81,24 @@ func (w *waxWriter) WriteAttribute(attributeName string, v any) *waxWriter {
 		} else if attributeName == "style" {
 			var serializedStyles []string
 			for pk, pv := range v {
+				if _, isString := pv.(string); !isString {
+					continue
+				}
+				if pv == "" || pv == nil {
+					continue
+				}
 				cssKey := camelToKebabCase(pk)
-				style := fmt.Sprintf("%s: %v;", cssKey, pv)
+				valueToWrite := pv.(string)
+				//valueToWrite = strings.ReplaceAll(valueToWrite,"'", `\27`)
+				valueToWrite = strings.ReplaceAll(valueToWrite, "\"", `\22`)
+				valueToWrite = strings.ReplaceAll(valueToWrite, ";", `\3B`)
+
+				style := fmt.Sprintf("%s: %v", cssKey, valueToWrite)
 				serializedStyles = append(serializedStyles, style)
 			}
-			w.sb.WriteString(fmt.Sprintf("%s=\"%s\"", attributeName, strings.Join(serializedStyles, " ")))
+			if len(serializedStyles) > 0 {
+				w.sb.WriteString(fmt.Sprintf("%s=\"%s;\"", attributeName, strings.Join(serializedStyles, "; ")))
+			}
 		} else {
 			w.sb.WriteString(fmt.Sprintf("%s=\"[object Object]\"", attributeName))
 		}
@@ -81,18 +126,8 @@ func (w *waxWriter) WriteAttribute(attributeName string, v any) *waxWriter {
 
 		}
 
-	case time.Time:
-		{
-			toWrite := v.UTC().Format("2006-01-02T15:04:05.000Z")
-			w.sb.WriteString(fmt.Sprintf("%s=\"%v\"", attributeName, toWrite))
-		}
-
-	case nil:
-		{
-		}
-
 	default:
-		toWrite := escapeHTML(v)
+		toWrite := getStringRepresentation(v)
 		w.sb.WriteString(fmt.Sprintf("%s=\"%v\"", attributeName, toWrite))
 	}
 
@@ -103,57 +138,40 @@ func (w *waxWriter) WriteValue(v ...any) *waxWriter {
 	if len(v) == 0 {
 		return w
 	}
+	if len(v) > 1 {
+		panic("expected to get single value")
+	}
 
 	switch v := v[0].(type) {
 	case templateResult:
 		{
 			w.sb.WriteString(string(v))
-			return w
 		}
 	case bool:
-		return w
-	case nil:
-		return w
-
-	case float64:
-		var toWrite string
-		if math.IsInf(v, 1) {
-			toWrite = ("Infinity")
-		} else if math.IsInf(v, -1) {
-			toWrite = ("-Infinity")
-		} else {
-			toWrite = escapeHTML(v)
+		{
+			//noop
 		}
-		w.sb.WriteString(toWrite)
-		return w
-
+	case nil:
+		{
+			//noop
+		}
+	case *waxWriter:
+		{
+			//noop
+		}
 	case []interface{}:
 		{
 			for _, o := range v {
 				w.WriteValue(o)
 			}
-			return w
 		}
-
-	case string:
-		{
-			toWrite := escapeHTML(v)
-			w.sb.WriteString(toWrite)
-			return w
-		}
-
-	case *waxWriter:
-		{
-			return w
-		}
-
 	default:
 		{
-			toWrite := escapeHTML(v)
+			toWrite := getStringRepresentation(v)
 			w.sb.WriteString(toWrite)
-			return w
 		}
 	}
+	return w
 }
 
 func (w *waxWriter) ToString(v any) string {
@@ -170,6 +188,83 @@ func escapeHTML(args ...any) string {
 	return result
 }
 
+type safe_str = string
+
+func getStringRepresentation(v any) safe_str {
+	switch v := v.(type) {
+	case time.Time:
+		return v.UTC().Format("2006-01-02T15:04:05.000Z")
+	case int:
+		return (strconv.Itoa(v))
+	case *int:
+		return (strconv.Itoa(*v))
+	case int8:
+		return (strconv.FormatInt(int64(v), 10))
+	case *int8:
+		return (strconv.FormatInt(int64(*v), 10))
+	case int16:
+		return (strconv.FormatInt(int64(v), 10))
+	case *int16:
+		return (strconv.FormatInt(int64(*v), 10))
+	case int32:
+		return (strconv.FormatInt(int64(v), 10))
+	case *int32:
+		return (strconv.FormatInt(int64(*v), 10))
+	case int64:
+		return (strconv.FormatInt(v, 10))
+	case *int64:
+		return (strconv.FormatInt(*v, 10))
+	case uint:
+		return (strconv.FormatUint(uint64(v), 10))
+	case *uint:
+		return (strconv.FormatUint(uint64(*v), 10))
+	case uint8:
+		return (strconv.FormatUint(uint64(v), 10))
+	case *uint8:
+		return (strconv.FormatUint(uint64(*v), 10))
+	case uint16:
+		return (strconv.FormatUint(uint64(v), 10))
+	case *uint16:
+		return (strconv.FormatUint(uint64(*v), 10))
+	case uint32:
+		return (strconv.FormatUint(uint64(v), 10))
+	case *uint32:
+		return (strconv.FormatUint(uint64(*v), 10))
+	case uint64:
+		return (strconv.FormatUint(v, 10))
+	case *uint64:
+		return (strconv.FormatUint(*v, 10))
+	case float32:
+		return (strconv.FormatFloat(float64(v), 'f', -1, 32))
+	case *float32:
+		return (strconv.FormatFloat(float64(*v), 'f', -1, 32))
+	case float64:
+		if math.IsInf(v, 1) {
+			return ("Infinity")
+		} else if math.IsInf(v, -1) {
+			return ("-Infinity")
+		} else {
+			return (strconv.FormatFloat(v, 'f', -1, 64))
+		}
+	case *float64:
+		return (strconv.FormatFloat(*v, 'f', -1, 64))
+	case big.Int:
+		return (v.String())
+	case *big.Int:
+		return (v.String())
+	case string, *string:
+		{
+			toWrite := escapeHTML(v)
+			return (toWrite)
+		}
+	default:
+		{
+			toWrite := escapeHTML(v)
+			return (toWrite)
+		}
+	}
+}
+
 func camelToKebabCase(input string) string {
 	var output strings.Builder
 	for i, r := range input {
@@ -179,4 +274,16 @@ func camelToKebabCase(input string) string {
 		output.WriteRune(r)
 	}
 	return strings.ToLower(output.String())
+}
+
+func isBoolEnumerableAttribute(attributeName string) bool {
+	switch true {
+	case attributeName == "draggable":
+		return true
+	case attributeName == "spellcheck":
+		return true
+	case strings.HasPrefix(attributeName, "aria-"):
+		return true
+	}
+	return false
 }

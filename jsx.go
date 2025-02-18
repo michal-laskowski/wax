@@ -48,15 +48,94 @@ func transpileJSX(fileName string, fileContent string) (string, error) {
 	return result, nil
 }
 
-var impReg = regexp.MustCompile(`(?m)import(?:(?:(?:[ \n\t]+([^ *\n\t\{\},]+)[ \n\t]*(?:,|[ \n\t]+))?([ \n\t]*\{(?:[ \n\t]*[^ \n\t"'\{\}]+[ \n\t]*,?)+\})?[ \n\t]*)|[ \n\t]*\*[ \n\t]*as[ \n\t]+([^ \n\t\{\}]+)[ \n\t]+)from[ \n\t]*(?:['"])([^'"\n]+)(['"])`)
-var importDefaultReg = regexp.MustCompile(`(?m)import\s+(\w+)\sfrom[ \n\t]*(?:['"])([^'"\n]+)(['"])`)
-var importPlain = regexp.MustCompile(`(?m)import\s+[ \n\t]*(?:['"])([^'"\n]+)(['"])`)
+type ImportClause struct {
+	ImportedDefaultBinding string
+	NameSpaceImport        string
+	NamedImports           map[string]string
+	ModuleName             string
+}
+
+var (
+	importRe       = regexp.MustCompile(`(?m)import(?:[\s.*]([\w*{}\n\r\t, ]+)[\s*]from)?[\s*](?:["'](.*[\w]+)["'])?`)
+	moduleOnlyRe   = regexp.MustCompile(`^["']([^"']+)["']$`)
+	moduleRe       = regexp.MustCompile(`\bfrom\s+["']([^"']+)["']`)
+	namespaceRe    = regexp.MustCompile(`\*\s+as\s+([a-zA-Z_$][a-zA-Z0-9_$]*)`)
+	namedImportsRe = regexp.MustCompile(`\{([^}]*)\}`)
+)
+
+func parseImportClause(input string) *ImportClause {
+	ic := &ImportClause{NamedImports: make(map[string]string)}
+
+	input = strings.TrimSpace(strings.TrimPrefix(input, "import "))
+	input = strings.TrimSuffix(input, ";")
+
+	// `import "module-name"`
+	if match := moduleOnlyRe.FindStringSubmatch(input); match != nil {
+		ic.ModuleName = match[1]
+		return ic
+	}
+
+	var moduleMatch []string
+	if moduleMatch = moduleRe.FindStringSubmatch(input); moduleMatch != nil {
+		ic.ModuleName = moduleMatch[1]
+		input = strings.TrimSpace(strings.Replace(input, moduleMatch[0], "", 1))
+	}
+
+	// (* as ns)
+	if match := namespaceRe.FindStringSubmatch(input); match != nil {
+		ic.NameSpaceImport = match[1]
+		input = strings.TrimSpace(strings.Replace(input, match[0], "", 1))
+	}
+
+	// ({ ... })
+	if match := namedImportsRe.FindStringSubmatch(input); match != nil {
+		for _, item := range strings.Split(match[1], ",") {
+			parts := strings.Split(strings.TrimSpace(item), " as ")
+			if len(parts) == 2 {
+				ic.NamedImports[strings.TrimSpace(parts[1])] = strings.TrimSpace(parts[0])
+			} else {
+				ic.NamedImports[parts[0]] = parts[0]
+			}
+		}
+		input = strings.TrimSpace(strings.Replace(input, match[0], "", 1))
+	}
+
+	// ImportedDefaultBinding
+	if input != "" && !strings.HasPrefix(input, "{") && !strings.HasPrefix(input, "*") {
+		ic.ImportedDefaultBinding = strings.SplitN(input, ",", 2)[0]
+		ic.ImportedDefaultBinding = strings.TrimSpace(ic.ImportedDefaultBinding)
+	}
+
+	return ic
+}
 
 func toWAXImport(input string) string {
-	result := input
-	result = importDefaultReg.ReplaceAllString(result, "var $1 = (globalThis.import.do_import('$2').default ?? (()=> {throw 'no default export'})())")
-	result = impReg.ReplaceAllString(result, "var $1$2$3 = globalThis.import.do_import('$4').exports")
-	result = importPlain.ReplaceAllString(result, "globalThis.import.do_import('$1').exports")
+	//https://262.ecma-international.org/14.0/#prod-ImportClause
+	result := importRe.ReplaceAllStringFunc(input, func(i string) string {
+		data := parseImportClause(i)
+		replaceResult := ""
+		if data.ImportedDefaultBinding != "" {
+			replaceResult += "const " + data.ImportedDefaultBinding + " = (globalThis.import.do_import('" + data.ModuleName + "').default ?? (()=> {throw 'no default export'}))();"
+		}
+		if data.NameSpaceImport != "" {
+			replaceResult += "const " + data.NameSpaceImport + " = globalThis.import.do_import('" + data.ModuleName + "').exports;"
+		}
+		namedImports := ""
+		for k, v := range data.NamedImports {
+			if v == "default" {
+				replaceResult += "const " + k + " = (globalThis.import.do_import('" + data.ModuleName + "').default ?? (()=> {throw 'no default export'}))();"
+			} else {
+				namedImports += fmt.Sprintf("%s: %s, ", v, k)
+			}
+		}
+		if namedImports != "" {
+			namedImports = "const {" + namedImports + "} = globalThis.import.do_import('" + data.ModuleName + "').exports;"
+		}
+		replaceResult += namedImports
+
+		return replaceResult
+	})
+
 	return result
 }
 
@@ -248,31 +327,44 @@ func (p *visitor_TAG) VisitElement(toVisit *ast.Element) {
 			if len(toVisit.Attrs) > 0 {
 				p.s.WriteString(" ")
 				for i, attr := range toVisit.Attrs {
+
 					if i > 0 {
 						p.s.WriteString(" ")
 					}
-					if isTextArea {
+
 						switch attr := attr.(type) {
 						case *ast.Field:
+						if isTextArea {
 							if attr.Name != "value" {
 								attr.Visit(p)
 							} else {
 								textAreaValueAttribute = attr
 							}
-						default:
+						} else {
 							attr.Visit(p)
+
 						}
+					case *ast.Expr:
+						script := strings.TrimSpace(attr.Fragments[0].String())
+						if strings.HasPrefix(script, "...") {
+							p.s.WriteString("`)")
+							p.s.WriteString(".WriteAttributes(")
+
+							p.s.WriteString(script[3:])
+							p.s.WriteString(")")
+							p.s.WriteString(".WriteHTML(`")
 					} else {
 						attr.Visit(p)
-
+						}
 					}
+
 				}
 			}
 			p.s.WriteString(">")
 		}
 
 		if isVoidElement(toVisit.Name) && len(toVisit.Children) != 0 {
-			p.err = fmt.Errorf("invalid: void element with child")
+			p.err = fmt.Errorf("child element is not allowed in void elements like '%s'", toVisit.Name)
 			return
 		}
 
@@ -316,7 +408,6 @@ func (p *visitor_TAG) VisitElement(toVisit *ast.Element) {
 var isAlpha = regexp.MustCompile(`^[A-Za-z]+$`).MatchString
 
 func (p *visitor_TAG) VisitComponentElement(toVisit *ast.Element) {
-
 	p.s.WriteString(toVisit.Name)
 	p.s.WriteString("(")
 
@@ -324,7 +415,6 @@ func (p *visitor_TAG) VisitComponentElement(toVisit *ast.Element) {
 		p.s.WriteString("{")
 		for i, attr := range toVisit.Attrs {
 			switch attr := attr.(type) {
-
 			case *ast.Field:
 				if isAlpha(attr.Name) {
 					p.s.WriteString(attr.Name)
@@ -425,7 +515,7 @@ func (p *visitor_TAG) VisitField(f *ast.Field) {
 	}
 }
 
-func (p *visitor_TAG) VisitStringValue(n *ast.StringValue) { p.notSupported(n) }
+func (p *visitor_TAG) VisitStringValue(n *ast.StringValue) { p.s.WriteString(n.Value) }
 func (p *visitor_TAG) VisitExpr(toVisit *ast.Expr) {
 	if len(toVisit.Fragments) == 1 {
 		switch toVisit.Fragments[0].(type) {

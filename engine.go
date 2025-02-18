@@ -88,14 +88,14 @@ func (this ModuleMeta) toJSObject() any {
 	}
 }
 
-func (e *WaxEngine) RenderWith(out io.Writer, viewName string, binding WaxRunBinding) error {
+func (this *WaxEngine) RenderWith(out io.Writer, viewName string, binding WaxRunBinding) error {
 	context := runContext{
 		Model:        binding.Model,
 		ViewResolver: binding.ViewResolver,
 		Globals:      binding.Globals,
-		Writer:       newWriter(),
+		Writer:       this.getNewWriter(),
 	}
-	if renderedView, err := e.renderView(viewName, context); err != nil {
+	if renderedView, err := this.renderView(viewName, context); err != nil {
 		return err
 	} else {
 		_, err = out.Write([]byte(renderedView))
@@ -107,7 +107,7 @@ func (this *WaxEngine) Render(out io.Writer, viewName string, model any) error {
 	context := runContext{
 		Model:        model,
 		ViewResolver: this.viewResolver,
-		Writer:       newWriter(),
+		Writer:       this.getNewWriter(),
 	}
 	if renderedView, err := this.renderView(viewName, context); err != nil {
 		return err
@@ -126,11 +126,15 @@ type runContext struct {
 
 const InternalError = "internal error"
 
+func (this *WaxEngine) getNewWriter() *waxWriter {
+	return newWriter()
+}
+
 func (this *WaxEngine) getDoImport(fromModule ModuleMeta, context *runContext) func(name string) any {
 	return func(importPath string) any {
 		viewFilePath, err := context.ViewResolver.ResolveModuleFile(fromModule, importPath)
 		if err != nil {
-			panic(errors.Join(errors.New("undable to resolve module import - "+importPath), err))
+			panic(errors.Join(errors.New("could not resolve module import"), err))
 		}
 
 		vm := goja.New()
@@ -289,10 +293,11 @@ func (this *WaxEngine) renderView(viewName string, context runContext) (string, 
 }
 
 type WaxObj struct {
+	engine *WaxEngine
 }
 
 func (w *WaxObj) NewWriter() *waxWriter {
-	return newWriter()
+	return w.engine.getNewWriter()
 }
 
 func (w *WaxObj) Raw(v string) templateResult {

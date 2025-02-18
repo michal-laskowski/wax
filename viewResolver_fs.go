@@ -1,28 +1,55 @@
 package wax
 
 import (
+	"errors"
 	"io/fs"
 	"net/url"
+	"os"
 	"path/filepath"
-	"time"
+	"strconv"
 )
 
-type viewResolver_fs struct {
-	fs fs.FS
-}
-
-func NewFsViewResolver(fs fs.FS) ViewResolver {
+func NewFsViewResolver(fs fs.FS, options ...FsViewResolverOptions) ViewResolver {
 	return &viewResolver_fs{
 		fs: fs,
+		ext: []string{
+			".tsx",
+			".jsx",
+		},
+	}
+}
+
+type viewResolver_fs struct {
+	fs  fs.FS
+	ext []string
+}
+type FsViewResolverOptions func(*viewResolver_fs)
+
+func SearchExtensions(ext ...string) FsViewResolverOptions {
+	return func(e *viewResolver_fs) {
+		ext = []string{}
+		for _, e := range ext {
+			if e[0] != '.' {
+				panic("extension must start with dot")
+			}
+			ext = append(ext, e)
+		}
 	}
 }
 
 func (this *viewResolver_fs) ResolveViewFile(viewName string) (*url.URL, error) {
-	f := viewName + ".tsx"
-	if stat, err := fs.Stat(this.fs, f); err != nil {
-		return nil, err
-	} else {
-		return url.ParseRequestURI("file:///" + f + "?ts=" + stat.ModTime().Format(time.RFC3339))
+	for _, e := range this.ext {
+		f := viewName + e
+		if stat, err := fs.Stat(this.fs, f); err != nil {
+			//continue
+		} else {
+			return url.ParseRequestURI("file:///" + f + "?ts=" + strconv.FormatInt(stat.ModTime().UnixMicro(), 16))
+		}
+	}
+	return nil, &os.PathError{
+		Op:   "not_found",
+		Path: viewName,
+		Err:  errors.New("could not resolve view file"),
 	}
 }
 
@@ -32,7 +59,7 @@ func (this *viewResolver_fs) ResolveModuleFile(fromModule ModuleMeta, importPath
 	if stat, err := fs.Stat(this.fs, f); err != nil {
 		return nil, err
 	} else {
-		return url.ParseRequestURI("file:///" + f + "?ts=" + stat.ModTime().Format(time.RFC3339))
+		return url.ParseRequestURI("file:///" + f + "?ts=" + strconv.FormatInt(stat.ModTime().UnixMicro(), 16))
 	}
 }
 
