@@ -3,9 +3,7 @@ package wax
 import (
 	"errors"
 	"fmt"
-
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -16,9 +14,18 @@ import (
 	esbuild "github.com/evanw/esbuild/pkg/api"
 )
 
-var ErrNotSupported = errors.New("wax does not support this syntax")
+func NewMMETranspiler() TypeScriptTranspiler {
+	return &mmeTranspiler{}
+}
 
-func transpile(fileName string, fileContent string) (string, error) {
+type mmeTranspiler struct{}
+
+var (
+	ErrNotSupported = errors.New("wax does not support this syntax")
+	importRe        = regexp.MustCompile(`(?m)import(?:[\s.*]([\w*{}\n\r\t, ]+)[\s*]from)?[\s*](?:["'](.*[\w]+)["'])?`)
+)
+
+func (t *mmeTranspiler) Transpile(fileName string, fileContent string) (string, error) {
 	transformResult := esbuild.Transform(fileContent, esbuild.TransformOptions{
 		Loader:           esbuild.LoaderTSX,
 		JSX:              esbuild.JSXPreserve,
@@ -30,10 +37,10 @@ func transpile(fileName string, fileContent string) (string, error) {
 		return "", fmt.Errorf("error while parsing JSX/TSX from file %s - %+v", fileName, transformResult.Errors)
 	}
 	jsScript := string(transformResult.Code)
-	return transpileJSX(fileName, jsScript)
+	return t.transpileJSX(fileName, jsScript)
 }
 
-func transpileJSX(fileName string, fileContent string) (string, error) {
+func (t *mmeTranspiler) transpileJSX(fileName string, fileContent string) (string, error) {
 	jsScript := string(fileContent)
 
 	script, err := jsx.Parse(fileName, jsScript)
@@ -48,88 +55,27 @@ func transpileJSX(fileName string, fileContent string) (string, error) {
 	return result, nil
 }
 
-type ImportClause struct {
-	ImportedDefaultBinding string
-	NameSpaceImport        string
-	NamedImports           map[string]string
-	ModuleName             string
-}
-
-var (
-	importRe       = regexp.MustCompile(`(?m)import(?:[\s.*]([\w*{}\n\r\t, ]+)[\s*]from)?[\s*](?:["'](.*[\w]+)["'])?`)
-	moduleOnlyRe   = regexp.MustCompile(`^["']([^"']+)["']$`)
-	moduleRe       = regexp.MustCompile(`\bfrom\s+["']([^"']+)["']`)
-	namespaceRe    = regexp.MustCompile(`\*\s+as\s+([a-zA-Z_$][a-zA-Z0-9_$]*)`)
-	namedImportsRe = regexp.MustCompile(`\{([^}]*)\}`)
-)
-
-func parseImportClause(input string) *ImportClause {
-	ic := &ImportClause{NamedImports: make(map[string]string)}
-
-	input = strings.TrimSpace(strings.TrimPrefix(input, "import "))
-	input = strings.TrimSuffix(input, ";")
-
-	// `import "module-name"`
-	if match := moduleOnlyRe.FindStringSubmatch(input); match != nil {
-		ic.ModuleName = match[1]
-		return ic
-	}
-
-	var moduleMatch []string
-	if moduleMatch = moduleRe.FindStringSubmatch(input); moduleMatch != nil {
-		ic.ModuleName = moduleMatch[1]
-		input = strings.TrimSpace(strings.Replace(input, moduleMatch[0], "", 1))
-	}
-
-	// (* as ns)
-	if match := namespaceRe.FindStringSubmatch(input); match != nil {
-		ic.NameSpaceImport = match[1]
-		input = strings.TrimSpace(strings.Replace(input, match[0], "", 1))
-	}
-
-	// ({ ... })
-	if match := namedImportsRe.FindStringSubmatch(input); match != nil {
-		for _, item := range strings.Split(match[1], ",") {
-			parts := strings.Split(strings.TrimSpace(item), " as ")
-			if len(parts) == 2 {
-				ic.NamedImports[strings.TrimSpace(parts[1])] = strings.TrimSpace(parts[0])
-			} else {
-				ic.NamedImports[parts[0]] = parts[0]
-			}
-		}
-		input = strings.TrimSpace(strings.Replace(input, match[0], "", 1))
-	}
-
-	// ImportedDefaultBinding
-	if input != "" && !strings.HasPrefix(input, "{") && !strings.HasPrefix(input, "*") {
-		ic.ImportedDefaultBinding = strings.SplitN(input, ",", 2)[0]
-		ic.ImportedDefaultBinding = strings.TrimSpace(ic.ImportedDefaultBinding)
-	}
-
-	return ic
-}
-
-func toWAXImport(input string) string {
-	//https://262.ecma-international.org/14.0/#prod-ImportClause
+func (p *modulePrinter) toWAXImport(input string) string {
+	// https://262.ecma-international.org/14.0/#prod-ImportClause
 	result := importRe.ReplaceAllStringFunc(input, func(i string) string {
 		data := parseImportClause(i)
 		replaceResult := ""
 		if data.ImportedDefaultBinding != "" {
-			replaceResult += "const " + data.ImportedDefaultBinding + " = (globalThis.import.do_import('" + data.ModuleName + "').default ?? (()=> {throw 'no default export'}))();"
+			replaceResult += "const " + data.ImportedDefaultBinding + " = (module.do_import('" + data.ModuleName + "').default ?? (()=> {throw `no default export in '" + data.ModuleName + "'`}));"
 		}
 		if data.NameSpaceImport != "" {
-			replaceResult += "const " + data.NameSpaceImport + " = globalThis.import.do_import('" + data.ModuleName + "').exports;"
+			replaceResult += "const " + data.NameSpaceImport + " = module.do_import('" + data.ModuleName + "').exports;"
 		}
 		namedImports := ""
 		for k, v := range data.NamedImports {
 			if v == "default" {
-				replaceResult += "const " + k + " = (globalThis.import.do_import('" + data.ModuleName + "').default ?? (()=> {throw 'no default export'}))();"
+				replaceResult += "const " + k + " = (module.do_import('" + data.ModuleName + "').default ?? (()=> {throw `no default export in '" + data.ModuleName + "'`}));"
 			} else {
 				namedImports += fmt.Sprintf("%s: %s, ", v, k)
 			}
 		}
 		if namedImports != "" {
-			namedImports = "const {" + namedImports + "} = globalThis.import.do_import('" + data.ModuleName + "').exports;"
+			namedImports = "const {" + namedImports + "} = module.do_import('" + data.ModuleName + "').exports;"
 		}
 		replaceResult += namedImports
 
@@ -139,17 +85,19 @@ func toWAXImport(input string) string {
 	return result
 }
 
-var exportRe = regexp.MustCompile(`(?m)export(?:(?:(?:[ \n\t]+([^ *\n\t\{\},]+)[ \n\t]*(?:,|[ \n\t]+))?([ \n\t]*\{(?:[ \n\t]*[^ \n\t"'\{\}]+[ \n\t]*,?)+\})?[ \n\t]*)|[ \n\t]*\*[ \n\t]*as[ \n\t]+([^ \n\t\{\}]+)[ \n\t]+)from[ \n\t]*(?:['"])([^'"\n]+)(?:['"])`)
-var exportNamed = regexp.MustCompile(`(?m)export\s+(const|let|var)\s+(\w+)`)
-var exportClass = regexp.MustCompile(`(?m)export\s+(class)\s+(\w+)`)
-var exportNamed2 = regexp.MustCompile(`(?m)export\s+(function)\s+(\w+)`)
-var exportDefaultNF = regexp.MustCompile(`(?m)export\s+default\s+(const|let|var|class)\s+(\w+)`)
-var exportDefaultF = regexp.MustCompile(`(?m)export\s+default\s+(function)\s+(\w+)`)
+var (
+	exportRe        = regexp.MustCompile(`(?m)export(?:(?:(?:[ \n\t]+([^ *\n\t\{\},]+)[ \n\t]*(?:,|[ \n\t]+))?([ \n\t]*\{(?:[ \n\t]*[^ \n\t"'\{\}]+[ \n\t]*,?)+\})?[ \n\t]*)|[ \n\t]*\*[ \n\t]*as[ \n\t]+([^ \n\t\{\}]+)[ \n\t]+)from[ \n\t]*(?:['"])([^'"\n]+)(?:['"])`)
+	exportNamed     = regexp.MustCompile(`(?m)export\s+(const|let|var)\s+(\w+)`)
+	exportClass     = regexp.MustCompile(`(?m)export\s+(class)\s+(\w+)`)
+	exportNamed2    = regexp.MustCompile(`(?m)export\s+(function)\s+(\w+)`)
+	exportDefaultNF = regexp.MustCompile(`(?m)export\s+default\s+(const|let|var|class)\s+(\w+)`)
+	exportDefaultF  = regexp.MustCompile(`(?m)export\s+default\s+(function)\s+(\w+)`)
+)
 
 // var exportReIm = regexp.MustCompile(`(?m)\{\s*(?:((\w+)\s?(?:as)?\s?(\w+))(?:\,?\s*)?)*\}`)
 var exportReIm2 = regexp.MustCompile(`(\w+)(?:\s+as\s+(\w+))?`)
 
-func toWAXExport(input string) string {
+func (p *modulePrinter) toWAXExport(input string) string {
 	result := input
 	if exportRe.MatchString(input) {
 		result = exportRe.ReplaceAllStringFunc(input, func(m string) string {
@@ -169,8 +117,8 @@ func toWAXExport(input string) string {
 	result = exportClass.ReplaceAllString(result, "module.exports.$2 = class $2")
 	result = exportNamed2.ReplaceAllString(result, "module.exports.$2 = $2;$1 $2")
 
-	result = exportDefaultNF.ReplaceAllString(result, "module.default = ()=> module.exports.$2;module.exports.$2")
-	result = exportDefaultF.ReplaceAllString(result, "module.default = ()=> module.exports.$2;module.exports.$2 = $2;$1 $2")
+	result = exportDefaultNF.ReplaceAllString(result, "module.default = module.exports.$2 = $2")
+	result = exportDefaultF.ReplaceAllString(result, "module.default = module.exports.$2 = $2;$1 $2")
 
 	return result
 }
@@ -186,8 +134,8 @@ func (p *modulePrinter) VisitScript(s *ast.Script) {
 }
 
 func (p *modulePrinter) VisitText(t *ast.Text) {
-	toWrite := toWAXImport(t.Value)
-	toWrite = toWAXExport(toWrite)
+	toWrite := p.toWAXImport(t.Value)
+	toWrite = p.toWAXExport(toWrite)
 	p.s.WriteString(toWrite)
 }
 
@@ -224,7 +172,6 @@ func (p *modulePrinter) VisitStringValue(s *ast.StringValue) {
 func (p *modulePrinter) VisitExpr(e *ast.Expr) {
 	if len(e.Fragments) == 1 {
 		switch e.Fragments[0].(type) {
-
 		case *ast.Comment:
 			return
 		}
@@ -244,7 +191,9 @@ func (p *modulePrinter) VisitBoolValue(b *ast.BoolValue) {
 }
 
 func (p *modulePrinter) VisitElement(toVisit *ast.Element) {
-	visitor := visitor_TAG{}
+	visitor := visitor_TAG{
+		isRoot: true,
+	}
 	visitor.Process(toVisit)
 	content, err := visitor.String()
 	if err != nil {
@@ -270,40 +219,24 @@ type visitor_TAG struct {
 	s   strings.Builder
 	err error
 
-	inSVG bool
+	inSVG  bool
+	isRoot bool
 }
 
 func (p *visitor_TAG) Process(toVisit ast.Fragment) {
-	p.s.WriteString("wax.NewWriter()")
-	p.s.WriteString(".WriteHTML(`")
-	toVisit.Visit(p)
-	p.s.WriteString("`)")
-	p.s.WriteString(".Result()")
-}
-
-var voidElements = []string{
-	"area",
-	"base",
-	"br",
-	"col",
-	"command",
-	"embed",
-	"hr",
-	"img",
-	"input",
-	"keygen",
-	"link",
-	"meta",
-	"param",
-	"source",
-	"track",
-	"wbr",
-	//todo ??
-	"reference",
-}
-
-func isVoidElement(name string) bool {
-	return slices.Contains(voidElements, name)
+	if p.isRoot {
+		p.s.WriteString("wax.Sub(w => w")
+		p.s.WriteString(".WriteHTML(`")
+		toVisit.Visit(p)
+		p.s.WriteString("`)")
+		p.s.WriteString(")")
+	} else {
+		p.s.WriteString("wax.Sub(w => w")
+		p.s.WriteString(".WriteHTML(`")
+		toVisit.Visit(p)
+		p.s.WriteString("`)")
+		p.s.WriteString(")")
+	}
 }
 
 func isCustomTag(name string) bool {
@@ -314,12 +247,15 @@ func isCustomTag(name string) bool {
 }
 
 func (p *visitor_TAG) VisitElement(toVisit *ast.Element) {
-
 	isComponent := len(toVisit.Name) > 0 && unicode.IsUpper([]rune(toVisit.Name)[0])
 
 	if !isComponent {
 		isTextArea := toVisit.Name == "textarea"
 		var textAreaValueAttribute *ast.Field
+		// if toVisit.Name == "script" {
+
+		// 	println(toVisit.String())
+		// } else
 		if toVisit.Name != "" {
 			p.s.WriteString("<")
 			p.s.WriteString(toVisit.Name)
@@ -332,8 +268,8 @@ func (p *visitor_TAG) VisitElement(toVisit *ast.Element) {
 						p.s.WriteString(" ")
 					}
 
-						switch attr := attr.(type) {
-						case *ast.Field:
+					switch attr := attr.(type) {
+					case *ast.Field:
 						if isTextArea {
 							if attr.Name != "value" {
 								attr.Visit(p)
@@ -342,7 +278,6 @@ func (p *visitor_TAG) VisitElement(toVisit *ast.Element) {
 							}
 						} else {
 							attr.Visit(p)
-
 						}
 					case *ast.Expr:
 						script := strings.TrimSpace(attr.Fragments[0].String())
@@ -353,8 +288,8 @@ func (p *visitor_TAG) VisitElement(toVisit *ast.Element) {
 							p.s.WriteString(script[3:])
 							p.s.WriteString(")")
 							p.s.WriteString(".WriteHTML(`")
-					} else {
-						attr.Visit(p)
+						} else {
+							attr.Visit(p)
 						}
 					}
 
@@ -370,15 +305,14 @@ func (p *visitor_TAG) VisitElement(toVisit *ast.Element) {
 
 		if !isComponent && !isCustomTag(toVisit.Name) && toVisit.SelfClosing != isVoidElement(toVisit.Name) {
 			if toVisit.Name == "script" {
-
-			} else if p.inSVG == false {
-				//p.err = fmt.Errorf("use proper closing. '%s' should be SelfClosing=%v", toVisit.Name, isVoidElement(toVisit.Name))
+			} else if !p.inSVG {
+				// p.err = fmt.Errorf("use proper closing. '%s' should be SelfClosing=%v", toVisit.Name, isVoidElement(toVisit.Name))
 			}
 		}
 
 		if isTextArea {
 			if len(toVisit.Children) != 0 {
-				p.err = fmt.Errorf("textarea should not have child. Use value attribute.")
+				p.err = fmt.Errorf("textarea should not have child. Use value attribute")
 				return
 			}
 			if textAreaValueAttribute != nil {
@@ -413,16 +347,15 @@ func (p *visitor_TAG) VisitComponentElement(toVisit *ast.Element) {
 
 	{
 		p.s.WriteString("{")
-		for i, attr := range toVisit.Attrs {
+		for _, attr := range toVisit.Attrs {
 			switch attr := attr.(type) {
 			case *ast.Field:
 				if isAlpha(attr.Name) {
 					p.s.WriteString(attr.Name)
 				} else {
 					p.s.WriteString(strconv.Quote(attr.Name))
-
 				}
-				p.s.WriteString(fmt.Sprintf("/* %v*/: ", i+1))
+				p.s.WriteString(": ")
 
 				jsP := visitor_JS{}
 				attr.Value.Visit(&jsP)
@@ -492,7 +425,10 @@ func (p *visitor_TAG) VisitField(f *ast.Field) {
 	case *ast.StringValue:
 		p.s.WriteString(attrName)
 		p.s.WriteString("=")
-		p.s.WriteString(strings.ReplaceAll(f.Value.String(), "$", "\\$"))
+		toWrite := f.Value.String()
+		toWrite = strings.ReplaceAll(toWrite, "\\", "\\\\")
+		toWrite = strings.ReplaceAll(toWrite, "`", "\\`")
+		p.s.WriteString(toWrite)
 
 	case *ast.BoolValue:
 		p.s.WriteString(attrName)
@@ -515,7 +451,12 @@ func (p *visitor_TAG) VisitField(f *ast.Field) {
 	}
 }
 
-func (p *visitor_TAG) VisitStringValue(n *ast.StringValue) { p.s.WriteString(n.Value) }
+func (p *visitor_TAG) VisitStringValue(n *ast.StringValue) {
+	toWrite := n.Value
+	toWrite = strings.ReplaceAll(toWrite, "`", "\\`")
+	p.s.WriteString(toWrite)
+}
+
 func (p *visitor_TAG) VisitExpr(toVisit *ast.Expr) {
 	if len(toVisit.Fragments) == 1 {
 		switch toVisit.Fragments[0].(type) {
@@ -553,6 +494,7 @@ func (p *visitor_TAG) VisitComment(n *ast.Comment)     {}
 func (p *visitor_TAG) notSupported(n any) {
 	p.err = errors.Join(ErrNotSupported, fmt.Errorf("TSXTagVisitor:Node %T: %+v", n, n))
 }
+
 func (p *visitor_TAG) String() (string, error) {
 	return p.s.String(), p.err
 }

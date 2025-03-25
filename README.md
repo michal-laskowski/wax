@@ -177,16 +177,36 @@ This way, your application can be built into a single file without needing to co
 
 ## More examples
 
-You can check out the [Echo example](https://github.com/michal-laskowski/wax-samples/tree/master/http-echo), which covers all the above aspects of DX.
+You can check out the [Echo example](https://github.com/michal-laskowski/wax-samples/tree/master/http-echo), which covers all the above aspects of DX. It:
 
-It:
-
-- It uses [Labstack Echo v4](https://github.com/labstack/echo) as a web framework.
+- uses [Labstack Echo v4](https://github.com/labstack/echo) as a web framework.
 - shows how you can implement 'DEV' mode – views from os.FS using [live-reload](https://github.com/michal-laskowski/wax-libs/tree/master/livereload)
 - shows how you can implement 'PROD' mode – views from embed.FS with live reloading disabled
 - shows how you can use [GoTS](https://github.com/michal-laskowski/wax-libs/tree/master/gots) to generate type definitions for TypeScript from a Go model
 
-## Usage
+For detailed usage check tests in this repo.
+
+## Usage / Architecture
+
+### How it works
+
+1. View render is requested
+2. Engine resolves view file name (see ```ViewResolver```) and loads file
+3. WAX transpiles Typescript/JavaScript (TSX/JSX) file to plain JS using [go-tree-sitter](github.com/smacker/go-tree-sitter) with [typescript](github.com/tree-sitter/tree-sitter-typescript). \
+***All JSX elements are replaced to corresponding WAX write operation.***\
+Write operations do auto-escaping of unsafe content (⚠️ please report any issues!!).
+4. WAX uses [dop251/goja](https://github.com/dop251/goja) to run JS code.
+5. As a result you get HTML.
+
+#### not anymore used
+
+- ESBuild - for dropping TypeScript types. During transpilation, the structure of the code changes. We want to keep structure so that the stack trace of possible exceptions corresponds (at least at the line level) to the source file.
+- [matthewmueller/jsx](github.com/matthewmueller/jsx) - for transpiling JSX. For POC this was a quick solution. Now we need more control.
+
+### What is not WAX job
+
+- linting: WAX do not analyse code for potential errors
+-
 
 ### View resolving
 
@@ -197,6 +217,15 @@ You can utilize the built-in resolver by calling ```NewFsViewResolver```.
 FsViewResolver searches for a view file with the same name as the requested view to render. It looks for files with the ```.tsx``` or ```.jsx``` extensions.
 
 ### Module imports
+
+WAX uses [dop251/goja](https://github.com/dop251/goja) does not support support ES modules - but we do.
+
+- **Remarks**
+  - modules do not work work exactly the same as they do in JS runtimes
+  - all modules are loaded synchronously
+  - we do not support top-level async or any other async - WAX is meant to be for templating, not waiting for data
+
+Thats for now. WIP
 
 WAX supports ESM export and import.
 
@@ -213,3 +242,8 @@ import defaultExport, { export1, /* … */ } from "./module-name.tsx";
 import defaultExport, * as name from "./module-name.tsx";
 import "./module-name.tsx";
 ```
+
+### JSX/TSX
+
+WAX is not (p)react(ish) for Go. We use plain old JSX as a templates/components structurization, where you can use JS for complex logic.\
+You don't get any hooks, 'use client' or something like that.

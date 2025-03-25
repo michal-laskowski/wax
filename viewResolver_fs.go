@@ -36,7 +36,7 @@ func simpleViewResolver(ext ...string) FSViewResolveFunc {
 		for _, e := range ext {
 			f := viewName + e
 			if stat, err := fs.Stat(onFS, f); err != nil {
-				//continue
+				// continue
 			} else {
 				return url.ParseRequestURI("file:///" + f + "?ts=" + strconv.FormatInt(stat.ModTime().UnixMicro(), 16))
 			}
@@ -54,24 +54,24 @@ type viewResolver_fs struct {
 	resolve FSViewResolveFunc
 }
 
-func (this *viewResolver_fs) ResolveViewFile(viewName string) (*url.URL, error) {
-	return this.resolve(this.fs, viewName)
+func (r *viewResolver_fs) ResolveViewFile(viewName string) (*url.URL, error) {
+	return r.resolve(r.fs, viewName)
 }
 
-func (this *viewResolver_fs) ResolveModuleFile(fromModule ModuleMeta, importPath string) (*url.URL, error) {
+func (r *viewResolver_fs) ResolveModuleFile(fromModule ModuleMeta, importPath string) (*url.URL, error) {
 	f, _ := filepath.Rel("/", filepath.Join(filepath.Join(fromModule.Dirname(), importPath)))
 	f = filepath.ToSlash(f)
-	if stat, err := fs.Stat(this.fs, f); err != nil {
+	if stat, err := fs.Stat(r.fs, f); err != nil {
 		return nil, err
 	} else {
 		return url.ParseRequestURI("file:///" + f + "?ts=" + strconv.FormatInt(stat.ModTime().UnixMicro(), 16))
 	}
 }
 
-func (this *viewResolver_fs) GetContent(url url.URL) (string, error) {
+func (r *viewResolver_fs) GetContent(url url.URL) (string, error) {
 	f, _ := filepath.Rel("/", url.Path)
 	f = filepath.ToSlash(f)
-	if content, err := fs.ReadFile(this.fs, f); err != nil {
+	if content, err := fs.ReadFile(r.fs, f); err != nil {
 		return "", err
 	} else {
 		return string(content), nil

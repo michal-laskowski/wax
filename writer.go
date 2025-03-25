@@ -1,10 +1,13 @@
 package wax
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"math"
 	"math/big"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -72,15 +75,22 @@ func (w *waxWriter) WriteAttribute(attributeName string, v any) *waxWriter {
 		}
 
 	case map[string]any:
-		if attributeName == "wax-attrs" {
+		keys := make([]string, 0, len(v))
+		for k := range v {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
 
-			for a, v := range v {
-				w.WriteAttribute(a, v)
+		if attributeName == "wax-attrs" {
+			for _, pk := range keys {
+
+				w.WriteAttribute(pk, v[pk])
 				w.sb.WriteString(" ")
 			}
 		} else if attributeName == "style" {
 			var serializedStyles []string
-			for pk, pv := range v {
+			for _, pk := range keys {
+				pv := v[pk]
 				if _, isString := pv.(string); !isString {
 					continue
 				}
@@ -89,7 +99,7 @@ func (w *waxWriter) WriteAttribute(attributeName string, v any) *waxWriter {
 				}
 				cssKey := camelToKebabCase(pk)
 				valueToWrite := pv.(string)
-				//valueToWrite = strings.ReplaceAll(valueToWrite,"'", `\27`)
+				// valueToWrite = strings.ReplaceAll(valueToWrite,"'", `\27`)
 				valueToWrite = strings.ReplaceAll(valueToWrite, "\"", `\22`)
 				valueToWrite = strings.ReplaceAll(valueToWrite, ";", `\3B`)
 
@@ -134,9 +144,9 @@ func (w *waxWriter) WriteAttribute(attributeName string, v any) *waxWriter {
 	return w
 }
 
-func (w *waxWriter) WriteValue(v ...any) *waxWriter {
+func (w *waxWriter) WriteValue(v ...any) (*waxWriter, error) {
 	if len(v) == 0 {
-		return w
+		return w, nil
 	}
 	if len(v) > 1 {
 		panic("expected to get single value")
@@ -147,17 +157,22 @@ func (w *waxWriter) WriteValue(v ...any) *waxWriter {
 		{
 			w.sb.WriteString(string(v))
 		}
+	case string:
+		{
+			toWrite := escapeHTML(v)
+			w.sb.WriteString(toWrite)
+		}
 	case bool:
 		{
-			//noop
+			// noop
 		}
 	case nil:
 		{
-			//noop
+			// noop
 		}
 	case *waxWriter:
 		{
-			//noop
+			// noop
 		}
 	case []interface{}:
 		{
@@ -165,13 +180,27 @@ func (w *waxWriter) WriteValue(v ...any) *waxWriter {
 				w.WriteValue(o)
 			}
 		}
+	case renderFunc:
+		{
+			_, err := v(w)
+			if err != nil {
+				return nil, err
+			}
+
+		}
 	default:
 		{
+			switch reflect.TypeOf(v).Kind() {
+			case reflect.Func:
+				{
+					return nil, errors.New("function is not a valid JSX.Child")
+				}
+			}
 			toWrite := getStringRepresentation(v)
 			w.sb.WriteString(toWrite)
 		}
 	}
-	return w
+	return w, nil
 }
 
 func (w *waxWriter) ToString(v any) string {

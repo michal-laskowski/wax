@@ -2,20 +2,25 @@ module github.com/michal-laskowski/wax
 
 go 1.23.2
 
-require github.com/dop251/goja v0.0.0-20250125213203-5ef83b82af17
+require github.com/dop251/goja v0.0.0-20250309171923-bcd7cc6bf64c
 
 require (
-	github.com/dlclark/regexp2 v1.11.4 // indirect
+	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
-	github.com/google/pprof v0.0.0-20250202011525-fc3143867406 // indirect
-	github.com/tdewolff/parse/v2 v2.7.20 // indirect
-	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
-	golang.org/x/text v0.22.0 // indirect
+	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect
+	github.com/sergi/go-diff v1.0.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 )
 
 require (
-	github.com/evanw/esbuild v0.24.2
-	github.com/matthewmueller/jsx v0.0.10
-	github.com/tdewolff/minify/v2 v2.21.3
+	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883
+	github.com/evanw/esbuild v0.25.1
+	github.com/matthewmueller/jsx v0.0.11
+	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82
+	github.com/tree-sitter/tree-sitter-typescript v0.23.3-0.20250130221139-75b3874edb2d
+	golang.org/x/net v0.37.0
 )
+
+retract v0.0.1 // WIP
