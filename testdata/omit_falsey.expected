@@ -1,0 +1,14 @@
+<in-inner>
+    <sample-01></sample-01>
+    <sample-02></sample-02>
+    <sample-03></sample-03>
+    <sample-04>0</sample-04>
+    <sample-99>|||0</sample-99>
+</in-inner>
+<in-attr>
+    <sample-01></sample-01>
+    <sample-02></sample-02>
+    <sample-03></sample-03>
+    <sample-04 v="0"></sample-04>
+    <sample-99 v4="0"></sample-99>
+</in-attr>

@@ -1,0 +1,35 @@
+<in-inner>
+    <sample-01>&#34;&lt;&gt;&amp;&#34;&#39;</sample-01>
+    <sample-02>&#39;&lt;&gt;&amp;&#34;&#39;</sample-02>
+    <sample-03>
+        <script>alert('sample-03')</script>
+    </sample-03>
+    <sample-04>
+        &lt;script&gt;alert(&#39;in-inner-sample-04&#39;)&lt;/script&gt;
+    </sample-04>
+    <sample-05>
+        &lt;script&gt;alert(&#34;in-inner-sample-05&#34;)&lt;/script&gt;
+    </sample-05>
+    <sample-06
+        title="&#39;&#34;&lt;&gt;&amp;"
+        style="text-align: &#39;\22&lt;&gt;&amp;">
+        &#39;&#34;&lt;&gt;&amp;
+    </sample-06>
+    <sample-07>
+        &lt;script type=&#39;&#39; src=&#34;&#34;&gt;&lt;/script&gt;
+    </sample-07>
+</in-inner>
+<in-attr>
+    <sample-01 v="&#34;&lt;&gt;&amp;&#34;&#39;"></sample-01>
+    <sample-02 v="&#39;&lt;&gt;&amp;&#34;&#39;"></sample-02>
+    <sample-03 xstyle="&#34;&amp;&lt;&gt;&#39;"></sample-03>
+    <sample-04 style="background-color: \22&amp;&lt;&gt;&#39;"></sample-04>
+    <sample-05 class="&#34;&amp;&lt;&gt;&#39;"></sample-05>
+    <sample-06 class="test:1&#34; xss=&#34;false"></sample-06>
+    <sample-07 onclick="&lt;script&gt;alert(&#34;xdd&#34;)&lt;/script&gt;">
+        in-attr-sample-07
+    </sample-07>
+    <sample-08 v="&#39;bar&#39;"></sample-08>
+    <sample-09 v="&#34;bar\&#34;"></sample-09>
+    <sample-10 v="bar\`"></sample-10>
+</in-attr>

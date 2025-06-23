@@ -1,6 +1,8 @@
 
 # wgo make dev
 dev: 
+	clear
+	echo "run ..."
 	mkdir -p ./.coverage
 	go run gotest.tools/gotestsum@latest -f testname -- ./... -race -count=1 -coverprofile=./.coverage/dev.out -covermode=atomic || true
 	covreport -i ./.coverage/dev.out -o ./.coverage/dev.out.html
@@ -17,11 +19,16 @@ tidy:
 	go mod tidy -v
 
 format:
+	go run mvdan.cc/gofumpt@latest -w -l .
 	go vet ./...
 	go run honnef.co/go/tools/cmd/staticcheck@latest ./...
-	go run mvdan.cc/gofumpt@latest -w -l .
+	# go run golang.org/x/lint/golint@latest -set_exit_status ./...
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 test:
 	go run gotest.tools/gotestsum@latest -f testname -- ./... -race -shuffle=on
 
 done: tidy format coverage
+
+
+.PHONY: test

@@ -3,13 +3,34 @@ package wax_test
 import (
 	"errors"
 	"testing"
-
-	"github.com/michal-laskowski/wax"
 )
 
 func Test_Engine_Base(t *testing.T) {
-	// Base (happy path) tests.
 	baseTests := []TestSample{
+		{
+			name:        "engine_meta",
+			description: "You can use module.meta",
+			source: `export function View(){ 
+
+                const keys = Object.keys(import.meta).sort().map(k => <><dt>{k}</dt><dd>{import.meta[k]}</dd></>)
+                return <>
+                    <dl>{keys}</dl>
+                </>
+            }`,
+			expected: `
+                <dl>
+                  <dt>dirname</dt>
+                  <dd>/</dd>
+                  <dt>filename</dt>
+                  <dd>/View.jsx</dd>
+                  <dt>main</dt>
+                  <dd></dd>
+                  <dt>url</dt>
+                  <dd>file:///View.jsx?ts=-dcbffeff2bc000</dd>
+                </dl>
+            `,
+		},
+
 		{
 			name:        "call_view_function",
 			description: "You must export your view from your JSX/TSX file",
@@ -329,65 +350,81 @@ func Test_Engine_Base(t *testing.T) {
               <step-7>Child call 2</step-7>
             </div>`,
 		},
+
+		{
+			name:        "engine_you_can_define_global_objects",
+			description: "You can specify global objects while creating Engine. It will be in context for each engine call.",
+			source: `export const View = () => { return <div>
+                    <div>{customGlobal.stringValue}</div>
+                    <div>{customGlobal.GoFunc()}</div>
+                </div>
+                }`,
+			globalObjects: map[string]any{
+				"customGlobal": map[string]any{
+					"stringValue": "test string in global object",
+					"GoErrorFunc": func() error { return errors.New("some error from go") },
+					"GoFunc":      func() string { return "value from go func" },
+				},
+			},
+			expected: `
+                <div>
+                    <div>test string in global object</div>
+                    <div>value from go func</div>
+                </div>`,
+		},
+
+		{ // TODO more on exceptions
+			name:        "engine_will_get_error_on_exception",
+			description: "You can specify global objects while creating Engine. It will be in context for each engine call.",
+			source: `export const View = () => { 
+                customGlobal.GoErrorFunc() //<--- throws exception
+                return <div>
+                    <div>{customGlobal.stringValue}</div>
+                    <div>{customGlobal.GoFunc()}</div>
+                </div>
+                }`,
+			errorPhase:   "execute",
+			errorMessage: "GoError: some error from go at github.com/michal-laskowski/wax_test.Test_Engine_Base.func6 (native)",
+			globalObjects: map[string]any{
+				"customGlobal": map[string]any{
+					"stringValue": "test string in global object",
+					"GoErrorFunc": func() error { return errors.New("some error from go") },
+					"GoFunc":      func() string { return "value from go func" },
+				},
+			},
+			expected: `
+                <div>
+                    <div>test string in global object</div>
+                    <div>value from go func</div>
+                </div>`,
+		},
+		{ // TODO more on exceptions
+			name:        "engine_will_get_error_on_exception_02",
+			description: "You can specify global objects while creating Engine. It will be in context for each engine call.",
+			source: `export const View = () => { 
+                
+                return <div>
+                    <div>{customGlobal.stringValue}</div>
+                    <div>{customGlobal.GoFunc()}</div>
+                    <div>{customGlobal.GoErrorFunc() /*<--- throws exception*/}</div>
+                </div>
+                }`,
+			errorPhase:   "execute",
+			errorMessage: "GoError: some error from go at github.com/michal-laskowski/wax_test.Test_Engine_Base.func8 (native)",
+			globalObjects: map[string]any{
+				"customGlobal": map[string]any{
+					"stringValue": "test string in global object",
+					"GoErrorFunc": func() error { return errors.New("some error from go") },
+					"GoFunc":      func() string { return "value from go func" },
+				},
+			},
+			expected: `
+                <div>
+                    <div>test string in global object</div>
+                    <div>value from go func</div>
+                </div>`,
+		},
 	}
 
 	runSamples(t, baseTests)
-}
-
-func Test_Engine_source_error(t *testing.T) {
-	check_error_reporting := []TestSample{
-		{
-			name:        "error_always_will_be_WaxError",
-			description: "",
-			source: `///
-            export function View(model) { 
-                return <div>ok
-            `,
-			errorPhase:   wax.PHASE_loading,
-			errorMessage: "wax error [load]: '/View.jsx': error on lines 2:4",
-		},
-		{
-			name:        "error_got_valid_line",
-			description: "",
-			source: `///
-export function View(model) { 
-    return <div>ok
-}`,
-			errorPhase:   wax.PHASE_loading,
-			errorMessage: "wax error [load]: '/View.jsx': error on lines 3:4",
-		},
-	}
-
-	for _, sample := range check_error_reporting {
-		t.Run(sample.name, func(t *testing.T) {
-			runErrorReportingSample(t, sample)
-		})
-	}
-}
-
-func runErrorReportingSample(t *testing.T, sample TestSample) {
-	actual, err := execSample(sample)
-
-	if err == nil {
-		t.Fatal("expected to get error")
-	}
-	var waxError wax.WaxError
-	if errors.As(err, &waxError) == false {
-		t.Errorf("wax must always return WaxError")
-	}
-
-	expectedPhase := sample.errorPhase
-	expectedMessage := sample.errorMessage
-	if waxError.Phase != expectedPhase {
-		t.Errorf("invalid phase > \n\tgot      : %s\n\texpected : %s", waxError.Phase, expectedPhase)
-	}
-
-	if waxError.ErrorDetailed() != expectedMessage {
-		t.Errorf("invalid message > \n\tgot      : %s\n\texpected : %s", waxError.ErrorDetailed(), expectedMessage)
-	}
-
-	// TODO: for now WAX writes to string buffer and returns string. This will change and we will use io.Writer
-	if actual != "" {
-		t.Errorf("invalid output")
-	}
 }

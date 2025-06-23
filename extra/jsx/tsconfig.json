@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "noEmit": true,
+        "allowImportingTsExtensions": true,
+        "plugins": [
+            {
+                "name": "ts-lit-plugin",
+                "strict": true,
+                "maxNodeModuleImportDepth": 0,
+                "rules": {
+                    "no-unknown-tag-name": "warning",
+                    "no-invalid-tag-name": "warning",
+                    "no-invalid-css": "off"
+                }
+            }
+        ],
+    },
+    "include": [
+        "*"
+    ]
+}

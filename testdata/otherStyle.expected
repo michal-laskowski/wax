@@ -1,0 +1,18 @@
+<sample-01 style="border: none;color: red"></sample-01>
+<sample-02 style="background-color: red"></sample-02>
+<sample-03 style="background-color: green"></sample-03>
+<sample-04 style="background-color: blue;"></sample-04>
+<sample-05 style="--foo: 1;--foo-bar: 2"></sample-05>
+<sample-06 style="background-image: url(\22example.png\22)"></sample-06>
+<sample-07 style="background-image: url(\22example.png\22)"></sample-07>
+<sample-08 style="background-image: url('example.png')"></sample-08>
+<sample-09 style="background-image: url('example.png')"></sample-09>
+<sample-10 style="content: '\22foo bar'"></sample-10>
+<sample-11 style="color: red;not: defined"></sample-11>
+<sample-12></sample-12>
+<sample-13></sample-13>
+<sample-14></sample-14>
+<sample-15></sample-15>
+<sample-16></sample-16>
+<sample-17></sample-17>
+<sample-18></sample-18>

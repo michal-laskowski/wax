@@ -1,0 +1,15 @@
+{
+    "name": "wax-jsx",
+    "version": "0.0.1",
+    "main": "./jsx-runtime.js",
+    "types": "./index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./index.d.ts"
+        },
+        "./jsx-runtime": {
+            "import": "./jsx-runtime.js",
+            "types": "./jsx-runtime.ts"
+        }
+    }
+}

@@ -1,0 +1,9 @@
+<textarea>abc</textarea>
+<textarea>a&amp;b&#34;c</textarea>
+<textarea>true</textarea>
+<textarea>&lt;div&gt;test area expected value&lt;/div&gt;</textarea>
+<textarea></textarea>
+<textarea></textarea>
+<textarea></textarea>
+<textarea>    </textarea>
+        

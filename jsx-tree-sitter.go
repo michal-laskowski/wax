@@ -1,20 +1,13 @@
 package wax
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"strings"
-	"time"
 	"unicode"
 
 	sitter "github.com/smacker/go-tree-sitter"
 	typescript "github.com/tree-sitter/tree-sitter-typescript/bindings/go"
 )
-
-type TypeScriptTranspiler interface {
-	Transpile(fileName string, fileContent string) (string, error)
-}
 
 func NewTreeSitterTranspiler(options ...TreeSitterTranspilerOption) TypeScriptTranspiler {
 	return &treeSitterTranspiler{
@@ -35,24 +28,25 @@ type (
 	}
 )
 
-func init() {
-	language = sitter.NewLanguage(typescript.LanguageTSX())
-	parser = sitter.NewParser()
-	parser.SetLanguage(language)
-}
-
-var (
-	language *sitter.Language
-	parser   *sitter.Parser
-)
+// https://raw.githubusercontent.com/tree-sitter/tree-sitter-typescript/refs/heads/master/tsx/src/grammar.json
+var language = sitter.NewLanguage(typescript.LanguageTSX())
 
 func (t *treeSitterTranspiler) Transpile(fileName string, fileContent string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	tree, err := parser.ParseCtx(ctx, nil, []byte(fileContent))
-	if err != nil {
-		return "", errors.New("error while parsing")
+	source := strings.NewReader(fileContent)
+
+	parser := sitter.NewParser()
+	parser.SetLanguage(language)
+	defer parser.Close()
+	var buf [4096]byte
+	input := sitter.Input{
+		Read: func(offset uint32, position sitter.Point) []byte {
+			n, _ := source.ReadAt(buf[:], int64(offset))
+			return buf[:n]
+		},
+
+		Encoding: sitter.InputEncodingUTF8,
 	}
+	tree := parser.ParseInput(nil, input)
 
 	visitor := &treeSitterVisitor{}
 
@@ -96,6 +90,7 @@ func findErrorNodes(node *sitter.Node, code []byte) error {
 		if parent != nil && parent.Type() == "string" {
 			if node.Content(code)[0] == '&' {
 				// skip this
+				// https://github.com/tree-sitter/tree-sitter-typescript/issues/320
 			}
 		} else {
 			start := node.StartByte()
@@ -119,22 +114,19 @@ func findErrorNodes(node *sitter.Node, code []byte) error {
 
 func (t *treeSitterVisitor) visit(node *sitter.Node, sourceCode []byte, depth int) {
 	nodeType := node.Type()
+	nodeEnd := node.EndByte()
 	switch nodeType {
 	case "jsx_self_closing_element", "jsx_element":
 		{
 			t.out.Write(sourceCode[t.last:node.StartByte()])
 			t.last = node.StartByte()
 			t.visitJSX(node, sourceCode, depth)
-			t.last = node.EndByte()
-			return
 		}
 	case "as_expression":
 		{
 			t.visit(node.Child(0), sourceCode, depth+1)
 			t.replaceWithSpacesFormat(node.Child(1), sourceCode)
 			t.replaceWithSpacesFormat(node.Child(2), sourceCode)
-
-			return
 		}
 	case
 		"type_alias_declaration",
@@ -144,13 +136,10 @@ func (t *treeSitterVisitor) visit(node *sitter.Node, sourceCode []byte, depth in
 		"ambient_declaration":
 		{
 			t.replaceWithSpacesFormat(node, sourceCode)
-			return
 		}
 	case "non_null_expression":
 		{
 			t.visit(node.Child(0), sourceCode, depth+1)
-			t.last = node.EndByte()
-			return
 		}
 	case "import_statement":
 		{
@@ -178,11 +167,7 @@ func (t *treeSitterVisitor) visit(node *sitter.Node, sourceCode []byte, depth in
 
 			t.out.Write(sourceCode[t.last:node.StartByte()])
 			t.out.WriteString(replaceResult)
-
-			t.last = node.EndByte()
-			return
 		}
-
 	case "export_statement":
 		if node.ChildCount() > 1 {
 			keyword := node.Child(0).Type()
@@ -199,27 +184,36 @@ func (t *treeSitterVisitor) visit(node *sitter.Node, sourceCode []byte, depth in
 					t.last = node.Child(1).StartByte()
 					t.visitExport(node.Child(1), sourceCode, depth+1)
 				}
-				t.last = node.EndByte()
-				return
+			default:
+				for i := 0; i < int(node.ChildCount()); i++ {
+					t.visit(node.Child(i), sourceCode, depth+1)
+				}
+				toRewrite := sourceCode[t.last:nodeEnd]
+				t.out.Write(toRewrite)
 			}
 		}
+	case "meta_property":
+		if node.Child(0).Type() == "import" {
+			t.out.WriteString("module.meta")
+		} else {
+			t.out.WriteString(node.Content(sourceCode))
+		}
+
 	case "jsx_expression":
 		expressionBody := node.Child(1)
 		t.last = expressionBody.StartByte()
 		t.visit(node.Child(1), sourceCode, depth)
-		t.last = node.EndByte()
-		return
 	case "jsx_text":
 		t.out.WriteString("`" + node.Content(sourceCode) + "`")
-		return
+	default:
+		cc := int(node.ChildCount())
+		for i := 0; i < cc; i++ {
+			t.visit(node.Child(i), sourceCode, depth+1)
+		}
+		toRewrite := sourceCode[t.last:nodeEnd]
+		t.out.Write(toRewrite)
 	}
-
-	for i := 0; i < int(node.ChildCount()); i++ {
-		t.visit(node.Child(i), sourceCode, depth+1)
-	}
-	toRewrite := sourceCode[t.last:node.EndByte()]
-	t.out.Write(toRewrite)
-	t.last = node.EndByte()
+	t.last = nodeEnd
 }
 
 func (t *treeSitterVisitor) visitExport(body *sitter.Node, sourceCode []byte, depth int) {
@@ -532,13 +526,7 @@ func (t *treeSitterVisitor) visitTag(node *sitter.Node, sourceCode []byte, depth
 				t.out.WriteString(")")
 				t.out.WriteString(".WriteHTML(`")
 				t.last = node.EndByte()
-				return
 			} else {
-				// TODO co z tym zrobić? jako feature
-				// if identifier == "textarea" {
-				// 	t.printNode(node, sourceCode, depth+1)
-				// 	return
-				// }
 				var innerNode *sitter.Node
 				for i := 0; i < int(node.ChildCount()-1); i++ {
 					node := node.Child(i)
@@ -546,11 +534,9 @@ func (t *treeSitterVisitor) visitTag(node *sitter.Node, sourceCode []byte, depth
 						node.Child(0).Content(sourceCode) == "value" &&
 						identifier == "textarea" {
 						innerNode = node.Child(2)
-						// t.printNode(node.Child(2), sourceCode, depth+1)
 					} else {
 						t.visitTag(node, sourceCode, depth+1)
 					}
-
 				}
 
 				if isVoidElement(identifier) {
@@ -571,9 +557,8 @@ func (t *treeSitterVisitor) visitTag(node *sitter.Node, sourceCode []byte, depth
 					t.out.WriteString("/>")
 				}
 				t.last = node.EndByte()
-				return
 			}
-
+			return
 		}
 	case "jsx_element":
 		{
@@ -586,10 +571,7 @@ func (t *treeSitterVisitor) visitTag(node *sitter.Node, sourceCode []byte, depth
 				t.out.WriteString(")")
 				t.out.WriteString(".WriteHTML(`")
 				t.last = node.EndByte()
-				return
 			} else {
-				////t.printChilds(node, sourceCode, depth)
-				//TODO child element is not allowed in void elements like
 				for i := 0; i < int(node.ChildCount()-1); i++ {
 					child := node.Child(i)
 					t.visitTag(child, sourceCode, depth+1)
@@ -602,8 +584,8 @@ func (t *treeSitterVisitor) visitTag(node *sitter.Node, sourceCode []byte, depth
 					t.out.WriteString(identifier)
 					t.out.WriteString(">")
 				}
-				return
 			}
+			return
 		}
 	case "jsx_opening_element":
 		{

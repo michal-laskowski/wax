@@ -64,8 +64,8 @@ go get github.com/michal-laskowski/wax
 Let's create ``` views/hello.tsx ``` file with exported view function.
 
 ```tsx title="views/hello.tsx"
-export function Hello(name: string) {
-    return <div>Hello, {name}</div>
+export default function Hello(model: { name: string }) {
+  return <div>Hello, {model.name}</div>;
 }
 ```
 
@@ -85,12 +85,25 @@ import (
 )
 
 func main() {
-  renderer := wax.New(wax.NewFsViewResolver(os.DirFS("./views/")))
-
+  // specify where are you views
+  viewsFS := os.DirFS("./views/")
+ 
+  // instantiate engine
+  viewResolver := wax.NewFsViewResolver(viewsFS)
+  renderer := wax.New(viewResolver)
+ 
   http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-   renderer.Render(w, "Hello", "John")
+    err := renderer.Render(w,
+      // Render view Hello
+      "Hello",
+      //Pass model (view params)
+      map[string]any{"name": "John"})
+      
+      if err != nil {
+        w.Write([]byte(err.Error()))
+      }
   })
-
+ 
   fmt.Println("Listening on http://localhost:3000")
   http.ListenAndServe(":3000", nil)
 }

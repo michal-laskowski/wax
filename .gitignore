@@ -1,10 +1,6 @@
-*_test.go
-!engine_*_test.go
-!export_test.go
-
-docs
-test_data
-test_data_full
+/docs
+/test_data
+/test_data_full
 /cmd
 **/.coverage/
- 
+dev*_test.go

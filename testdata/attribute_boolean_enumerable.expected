@@ -1,0 +1,18 @@
+
+<attr-known>
+    <sample-01 draggable="true"></sample-01>
+    <sample-02 draggable="false"></sample-02>
+    <sample-03 spellcheck="true"></sample-03>
+    <sample-04 spellcheck="false"></sample-04>
+    <sample-05 draggable="true"></sample-05>
+    <sample-06 draggable="false"></sample-06>
+    <sample-07 spellcheck="true"></sample-07>
+    <sample-08 spellcheck="false"></sample-08>
+</attr-known>
+
+<attr-aria>
+    <sample-01 aria-checked="true"></sample-01>
+    <sample-02 aria-checked="false"></sample-02>
+    <sample-03 aria-selected="true"></sample-03>
+    <sample-04 aria-selected="false"></sample-04>
+</attr-aria>

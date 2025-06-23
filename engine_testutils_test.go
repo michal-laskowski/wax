@@ -2,6 +2,7 @@ package wax_test
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -12,13 +13,13 @@ import (
 )
 
 type TestSample struct {
-	skip        string
-	name        string
-	description string
-	source      string
-	expected    string
-	modules     map[string]string
-	model       any
+	name          string
+	description   string
+	source        string
+	expected      string
+	modules       map[string]string
+	model         any
+	globalObjects map[string]any
 
 	errorPhase   string
 	errorMessage string
@@ -39,6 +40,8 @@ type DummyTest struct {
 	OtherDummyBasicTypes    DummyBasicTypes
 	DummySimple
 	goPrivateField int
+
+	SomeMap map[string]any
 }
 
 type Contact struct {
@@ -121,16 +124,44 @@ func runSample(t *testing.T, sample TestSample) {
 	for k, v := range sample.modules {
 		fs[k] = &fstest.MapFile{Data: []byte(v)}
 	}
-	engine := wax.New(wax.NewFsViewResolver(fs))
+
+	options := []wax.Option{}
+	if sample.globalObjects != nil {
+		for k, v := range sample.globalObjects {
+			options = append(options, wax.WithGlobalObject(k, v))
+		}
+	}
+	engine := wax.New(wax.NewFsViewResolver(fs), options...)
 
 	buf := bytes.NewBufferString("")
 	err := engine.Render(buf, "View", sample.model)
+	actual := buf.String()
 
-	if err != nil {
-		t.Errorf("\n-----------------------\n !!!!!!!!!!!!!! Errored %s - %+v", sample.name, err)
+	if sample.errorPhase == "" {
+		if err != nil {
+			t.Errorf("\n-----------------------\n !!!!!!!!!!!!!! Errored %s - %+v", sample.name, err)
+		} else {
+			compareHTML(t, sample.name, sample.expected, actual)
+		}
 	} else {
-		actual := buf.String()
-		compareHTML(t, sample.name, sample.expected, actual)
+		if err == nil {
+			t.Fatal("expected to get error")
+		}
+		var waxError wax.Error
+		if errors.As(err, &waxError) == false {
+			t.Errorf("wax must always return WaxError")
+		}
+
+		expectedPhase := sample.errorPhase
+		expectedMessage := sample.errorMessage
+		if waxError.Phase != expectedPhase {
+			t.Errorf("invalid phase > \n\tgot      : %s\n\texpected : %s", waxError.Phase, expectedPhase)
+		}
+
+		actualMessage := waxError.Error()
+		if actualMessage != expectedMessage {
+			t.Errorf("invalid message > \n\tgot      : %s\n\texpected : %s", actualMessage, expectedMessage)
+		}
 	}
 }
 
@@ -147,13 +178,13 @@ func execSample(sample TestSample) (string, error) {
 	return buf.String(), err
 }
 
-func compareHTML(t *testing.T, tName string, e string, a string) bool {
-	eF := formatHTML(e)
-	aF := formatHTML(a)
+func compareHTML(t testing.TB, tName string, expected string, actual string) bool {
+	eF := formatHTML(expected)
+	aF := formatHTML(actual)
 
 	if strings.Compare(eF, aF) != 0 {
-		t.Errorf("Result not as expected:\n\n%v\n\n\n", diff.LineDiff(eF, aF))
-		t.Errorf("\n-----------------------\nResult was incorrect %s,\n\n.....got :\n%s\n..\n\n.....want:\n%s\n..\n\n", tName, aF, eF)
+		t.Errorf("result not as expected for test '%s':\n\n%v\n\n-----------------------\n.....got :\n%s\n..\n\n.....want:\n%s\n..\n\n", tName, diff.LineDiff(eF, aF), actual, expected)
+
 		return false
 	}
 	return true

@@ -1,0 +1,18 @@
+
+    <sample-01>[str1 str2]</sample-01>
+    <sample-02>[]</sample-02>
+    <sample-03>[str1 str2]</sample-03>
+    <sample-04>[]</sample-04>
+    <sample-05>some-str-value-in-alias</sample-05>
+    <sample-05a>object - type alias will be object in goja</sample-05a>
+    <sample-05b>function</sample-05b>
+    <sample-05c>function</sample-05c>
+    <sample-06>339999995214436420000000000000000000000</sample-06>
+    <sample-07>170000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000</sample-07>
+    <sample-08>{OtherDummySimple-str-value}</sample-08>
+    <sample-09>{map[] map[] map[] map[] map[] map[]}</sample-09>
+    <sample-10>{888888}</sample-10>
+    <sample-11>{false OtherDummyBasicTypes-str 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 (0+0i) (0+0i)}</sample-11>
+    <sample-12>{DummySimple-Embedded-str-value}</sample-12>
+    <sample-13></sample-13>
+    <sample-13></sample-13>

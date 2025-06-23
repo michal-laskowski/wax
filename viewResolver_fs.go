@@ -10,14 +10,14 @@ import (
 )
 
 func NewFsViewResolver(fs fs.FS) ViewResolver {
-	return &viewResolver_fs{
+	return &viewResolverFS{
 		fs:      fs,
 		resolve: simpleViewResolver(".tsx", ".jsx"),
 	}
 }
 
 func NewFsViewResolverCustom(fs fs.FS, r FSViewResolveFunc) ViewResolver {
-	return &viewResolver_fs{
+	return &viewResolverFS{
 		fs:      fs,
 		resolve: r,
 	}
@@ -49,31 +49,34 @@ func simpleViewResolver(ext ...string) FSViewResolveFunc {
 	}
 }
 
-type viewResolver_fs struct {
+type viewResolverFS struct {
 	fs      fs.FS
 	resolve FSViewResolveFunc
 }
 
-func (r *viewResolver_fs) ResolveViewFile(viewName string) (*url.URL, error) {
+func (r *viewResolverFS) ResolveViewFile(viewName string) (*url.URL, error) {
 	return r.resolve(r.fs, viewName)
 }
 
-func (r *viewResolver_fs) ResolveModuleFile(fromModule ModuleMeta, importPath string) (*url.URL, error) {
-	f, _ := filepath.Rel("/", filepath.Join(filepath.Join(fromModule.Dirname(), importPath)))
+func (r *viewResolverFS) ResolveModuleFile(fromModule ModuleMeta, importPath string) (*url.URL, error) {
+	fromDir := filepath.Dir(fromModule.URL.Path)
+	f, _ := filepath.Rel("/", filepath.Join(filepath.Join(fromDir, importPath)))
 	f = filepath.ToSlash(f)
-	if stat, err := fs.Stat(r.fs, f); err != nil {
+	stat, err := fs.Stat(r.fs, f)
+	if err != nil {
 		return nil, err
-	} else {
-		return url.ParseRequestURI("file:///" + f + "?ts=" + strconv.FormatInt(stat.ModTime().UnixMicro(), 16))
 	}
+
+	return url.ParseRequestURI("file:///" + f + "?ts=" + strconv.FormatInt(stat.ModTime().UnixMicro(), 16))
 }
 
-func (r *viewResolver_fs) GetContent(url url.URL) (string, error) {
+func (r *viewResolverFS) GetContent(url url.URL) (string, error) {
 	f, _ := filepath.Rel("/", url.Path)
 	f = filepath.ToSlash(f)
-	if content, err := fs.ReadFile(r.fs, f); err != nil {
+	content, err := fs.ReadFile(r.fs, f)
+	if err != nil {
 		return "", err
-	} else {
-		return string(content), nil
 	}
+
+	return string(content), nil
 }

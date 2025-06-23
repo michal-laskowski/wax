@@ -31,7 +31,7 @@ func isVoidElement(name string) bool {
 	return slices.Contains(voidElements, name)
 }
 
-type ImportClause struct {
+type importClause struct {
 	ImportedDefaultBinding string
 	NameSpaceImport        string
 	NamedImports           map[string]string
@@ -45,8 +45,8 @@ var (
 	namedImportsRe = regexp.MustCompile(`\{([^}]*)\}`)
 )
 
-func parseImportClause(input string) *ImportClause {
-	ic := &ImportClause{NamedImports: make(map[string]string)}
+func parseImportClause(input string) *importClause {
+	ic := &importClause{NamedImports: make(map[string]string)}
 
 	input = strings.TrimSpace(strings.TrimPrefix(input, "import "))
 	input = strings.TrimSuffix(input, ";")
