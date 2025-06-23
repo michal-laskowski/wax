@@ -1,4 +1,4 @@
-module github.com/michal-laskowski/extra/livereload
+module github.com/michal-laskowski/wax/extra/livereload
 
 go 1.23.0
 

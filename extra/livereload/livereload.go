@@ -35,7 +35,6 @@ func StartLiveReload(config ...LiveReloadConfig) error {
 	go useConfig.startWatcher()
 	watchAddr := fmt.Sprintf(":%d", useConfig.ServerPort)
 	return http.ListenAndServe(watchAddr, nil)
-
 }
 
 type LiveReloadConfig struct {
@@ -55,7 +54,6 @@ var defaultConfig = LiveReloadConfig{
 }
 
 func (this *LiveReloadConfig) writer(ws *websocket.Conn, lastMod int64) {
-
 	fileTicker := time.NewTicker(this.filePeriod)
 	defer func() {
 		fileTicker.Stop()
@@ -72,7 +70,7 @@ func (this *LiveReloadConfig) writer(ws *websocket.Conn, lastMod int64) {
 		select {
 		case <-fileTicker.C:
 			if lastMod < this.lastMod {
-				//got change
+				// got change
 
 				lastMod = this.lastMod
 				ws.SetWriteDeadline(time.Now().Add(this.writeWait))
@@ -80,7 +78,7 @@ func (this *LiveReloadConfig) writer(ws *websocket.Conn, lastMod int64) {
 					return
 				}
 			} else {
-				//no changes
+				// no changes
 				ws.SetReadDeadline(time.Now().Add(6 * time.Second))
 				_, _, err := ws.ReadMessage()
 				if err != nil {
