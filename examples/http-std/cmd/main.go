@@ -20,7 +20,7 @@ func main() {
 		err := renderer.Render(w,
 			// Render view Hello
 			"Hello",
-			//Pass model (view params)
+			// Pass model (view params)
 			map[string]any{"name": "John"})
 		if err != nil {
 			w.Write([]byte(err.Error()))

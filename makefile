@@ -15,7 +15,7 @@ coverage:
 	cp -u ${OUT}.html ./.coverage/last-result.html
 
 tidy:
-	go get -u
+	go get -u ./...
 	go mod tidy -v
 
 format:

@@ -9,6 +9,7 @@ require (
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
+	github.com/stretchr/testify v1.10.0 // indirect
 	golang.org/x/text v0.26.0 // indirect
 )
 

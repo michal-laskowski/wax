@@ -52,6 +52,9 @@ func Test_Engine_ExtendedOut(t *testing.T) {
 		testName := strings.TrimSuffix(ef, ".expected")
 
 		expected, err := fs.ReadFile(testDataFS, ef)
+		if err != nil {
+			t.Errorf("error while loading result file %s", testName)
+		}
 		err = engine.Render(buf, testName, testModel)
 
 		if err != nil {
