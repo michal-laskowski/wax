@@ -132,7 +132,9 @@ func (t *treeSitterVisitor) visit(node *sitter.Node, sourceCode []byte, depth in
 		"type_alias_declaration",
 		"type_annotation",
 		"type_arguments",
+		"type_parameters",
 		"declare",
+		"accessibility_modifier",
 		"ambient_declaration":
 		{
 			t.replaceWithSpacesFormat(node, sourceCode)
@@ -257,10 +259,15 @@ func (t *treeSitterVisitor) visitExport(body *sitter.Node, sourceCode []byte, de
 
 	case "export_clause":
 		// export { foo, bar } → module.exports.foo = foo; module.exports.bar = bar;
-		exportList := body.Child(1)
+		exportList := body
 		replacement := []string{}
-		for i := 0; i < int(exportList.ChildCount()); i += 2 {
-			exportName := exportList.Child(i).Content(sourceCode)
+		if exportList.ChildCount() > 1 {
+			for i := 1; i < int(exportList.ChildCount())-1; i += 2 {
+				exportName := exportList.Child(i).Content(sourceCode)
+				replacement = append(replacement, fmt.Sprintf("module.exports.%s = %s;", exportName, exportName))
+			}
+		} else {
+			exportName := exportList.Child(0).Content(sourceCode)
 			replacement = append(replacement, fmt.Sprintf("module.exports.%s = %s;", exportName, exportName))
 		}
 		replaceResult = strings.Join(replacement, " ")

@@ -6,7 +6,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 )
 
 func NewFsViewResolver(fs fs.FS) ViewResolver {
@@ -33,12 +35,21 @@ func simpleViewResolver(ext ...string) FSViewResolveFunc {
 	}
 
 	return func(onFS fs.FS, viewName string) (*url.URL, error) {
-		for _, e := range ext {
-			f := viewName + e
-			if stat, err := fs.Stat(onFS, f); err != nil {
-				// continue
-			} else {
-				return url.ParseRequestURI("file:///" + f + "?ts=" + strconv.FormatInt(stat.ModTime().UnixMicro(), 16))
+		if stat, err := fs.Stat(onFS, viewName); err == nil {
+			return url.ParseRequestURI("file:///" + viewName + "?ts=" + strconv.FormatInt(stat.ModTime().UnixMicro(), 16))
+		}
+
+		if slices.ContainsFunc(ext, func(e string) bool { return strings.HasSuffix(viewName, e) }) {
+			if stat, err := fs.Stat(onFS, viewName); err == nil {
+				return url.ParseRequestURI("file:///" + viewName + "?ts=" + strconv.FormatInt(stat.ModTime().UnixMicro(), 16))
+			}
+		} else {
+			for _, e := range ext {
+				f := viewName + e
+
+				if stat, err := fs.Stat(onFS, f); err == nil {
+					return url.ParseRequestURI("file:///" + f + "?ts=" + strconv.FormatInt(stat.ModTime().UnixMicro(), 16))
+				}
 			}
 		}
 		return nil, &os.PathError{
@@ -59,15 +70,17 @@ func (r *viewResolverFS) ResolveViewFile(viewName string) (*url.URL, error) {
 }
 
 func (r *viewResolverFS) ResolveModuleFile(fromModule ModuleMeta, importPath string) (*url.URL, error) {
+	if len(importPath) < 3 {
+		return nil, errors.New("invalid import path")
+	}
+	if importPath[0] != '.' {
+		return nil, errors.New("only relative path is supported")
+	}
+
 	fromDir := filepath.Dir(fromModule.URL.Path)
 	f, _ := filepath.Rel("/", filepath.Join(filepath.Join(fromDir, importPath)))
 	f = filepath.ToSlash(f)
-	stat, err := fs.Stat(r.fs, f)
-	if err != nil {
-		return nil, err
-	}
-
-	return url.ParseRequestURI("file:///" + f + "?ts=" + strconv.FormatInt(stat.ModTime().UnixMicro(), 16))
+	return r.resolve(r.fs, f)
 }
 
 func (r *viewResolverFS) GetContent(url url.URL) (string, error) {

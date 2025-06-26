@@ -1,0 +1,8 @@
+{
+    "compilerOptions": {
+        "jsx": "preserve",
+        "noEmit": true,
+        "allowImportingTsExtensions": true,
+        "baseUrl": ".",
+    }
+}

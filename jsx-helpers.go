@@ -76,7 +76,11 @@ func parseImportClause(input string) *importClause {
 			if len(parts) == 2 {
 				ic.NamedImports[strings.TrimSpace(parts[1])] = strings.TrimSpace(parts[0])
 			} else {
-				ic.NamedImports[parts[0]] = parts[0]
+				if strings.HasPrefix(parts[0], "type ") {
+					//type import : skip
+				} else {
+					ic.NamedImports[parts[0]] = parts[0]
+				}
 			}
 		}
 		input = strings.TrimSpace(strings.Replace(input, match[0], "", 1))

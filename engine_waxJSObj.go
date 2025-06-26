@@ -75,11 +75,16 @@ func buildModuleObjStruct(m *ModuleMeta, c *waxJSObj) *goja.Object {
 			"url":      m.URL.String(),
 			"main":     m.isMain,
 		},
-		"exports": map[string]any{},
+		"exports": c.vm.NewObject(),
 		"do_import": func(arg goja.FunctionCall) goja.Value {
 			v := arg.Arguments[0].String()
 
-			p, _ := c.engine.viewResolver.ResolveModuleFile(*m, v)
+			p, err := c.engine.viewResolver.ResolveModuleFile(*m, v)
+			if err != nil {
+				c.vm.Interrupt(err)
+				return nil
+			}
+
 			m, err := c.engine.load(c.context, c, p)
 			if err != nil {
 				c.vm.Interrupt(err)

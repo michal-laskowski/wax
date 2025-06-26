@@ -191,7 +191,7 @@ func (e *Engine) loadModuleImport(module *ModuleMeta, context *runContext) (*goj
 		}
 	}
 
-	jsCode = fmt.Sprintf(";(function (module) {;\n%s\n;})(wax.GetModule('%s'));", jsCode, key)
+	jsCode = fmt.Sprintf(";(function (module) {;%s;})(wax.GetModule('%s'));", jsCode, key)
 	compiled, err := goja.Compile(key, jsCode, true)
 	e.cache[key] = compiled
 	if err != nil {
