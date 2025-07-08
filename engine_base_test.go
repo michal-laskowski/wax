@@ -38,12 +38,11 @@ func Test_Engine_Base(t *testing.T) {
 			expected:    "<div>Hello</div>",
 		},
 
-		{
+		{ /*TODO: make this a option */
 			name:        "call_view_fallback",
-			description: "Test is requesting 'View' to bew called. Engine will fallback to default exported function if it will not find function named as requested view",
+			description: "Test is requesting 'View' to be called. Engine will fallback to default exported function if it will not find function named as requested view",
 			source:      "export default function fallback(){ return <div>Hello</div> }",
 			expected:    "<div>Hello</div>",
-			/*TODO: make this a option */
 		},
 
 		{
@@ -128,7 +127,6 @@ func Test_Engine_Base(t *testing.T) {
 				FullAddress: func() string { return "Earth" + " at " + "Solar System" },
 			},
 		},
-
 		{
 			name:        "we_autoescape_values",
 			description: "We encode values",
@@ -155,6 +153,9 @@ func Test_Engine_Base(t *testing.T) {
             { 
                 return <div>
                     <DumpObject {...model} />
+                    <DumpObject {...model} ></DumpObject>
+                    <dumpObject {...model} />
+                    <dumpObject {...model} ></dumpObject>
                     <DumpObject x-data={model.Contact} />
                     <DumpObject x-data={model.Contact} {...model} />
                     <DumpObject {...model} Contact={"foo"} />
@@ -176,6 +177,9 @@ func Test_Engine_Base(t *testing.T) {
 			expected: `
             <div>
                 <span>Keys: Contact, Email, FullAddress, Planet, System</span>
+                <span>Keys: Contact, Email, FullAddress, Planet, System</span>
+                <dumpobject contact="John Doe" email="johndoe@example.com" planet="Earth" system="Solar System"></dumpobject>
+                <dumpobject contact="John Doe" email="johndoe@example.com" planet="Earth" system="Solar System"></dumpobject>
                 <span>Keys: x-data</span>
                 <span>Keys: Contact, Email, FullAddress, Planet, System, x-data</span>
                 <span>Keys: Contact, Email, FullAddress, Planet, System</span>
@@ -184,6 +188,29 @@ func Test_Engine_Base(t *testing.T) {
                 <span>foo</span>
                 <span>John Doe</span>
             </div>`,
+		},
+		{
+			name:        "use_spread_operator",
+			description: "You can use spread operator",
+			source: `
+            export function View({Email, ...rest}: {Email: string}) { 
+                return <i>{rest.Contact} - {Email} - {rest.FullAddress()}</i> 
+            }`,
+			expected: `<i>John Doe - johndoe@example.com - Earth at Solar System</i>`,
+			model: struct {
+				Contact string
+				Email   string
+
+				System      string
+				Planet      string
+				FullAddress func() string
+			}{
+				Contact:     "John Doe",
+				Email:       "johndoe@example.com",
+				System:      "Solar System",
+				Planet:      "Earth",
+				FullAddress: func() string { return "Earth" + " at " + "Solar System" },
+			},
 		},
 
 		{
@@ -384,7 +411,7 @@ func Test_Engine_Base(t *testing.T) {
                 </div>
                 }`,
 			errorPhase:   "execute",
-			errorMessage: "GoError: some error from go at github.com/michal-laskowski/wax_test.Test_Engine_Base.func6 (native)",
+			errorMessage: "GoError: some error from go at github.com/michal-laskowski/wax_test.Test_Engine_Base.func7 (native)",
 			globalObjects: map[string]any{
 				"customGlobal": map[string]any{
 					"stringValue": "test string in global object",
@@ -410,7 +437,7 @@ func Test_Engine_Base(t *testing.T) {
                 </div>
                 }`,
 			errorPhase:   "execute",
-			errorMessage: "GoError: some error from go at github.com/michal-laskowski/wax_test.Test_Engine_Base.func8 (native)",
+			errorMessage: "GoError: some error from go at github.com/michal-laskowski/wax_test.Test_Engine_Base.func9 (native)",
 			globalObjects: map[string]any{
 				"customGlobal": map[string]any{
 					"stringValue": "test string in global object",

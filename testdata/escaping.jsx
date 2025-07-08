@@ -21,6 +21,9 @@ export function escaping(){
             <sample-08 v="'bar'" />
             <sample-09 v='"bar\"' />
             <sample-10 v="bar\`" />
+            <sample-11 v={"'bar'"} />
+            <sample-12 v={'"bar\`\"\''} />
+            <sample-13 v={"bar\`\"\'"} />
         </in-attr>
     </>)
 }

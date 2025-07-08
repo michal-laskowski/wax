@@ -3,7 +3,7 @@ import * as AllImports from "./someclass"
 
 import { SomeClass as SingleImport } from "./someclass.tsx"
 
-export default function View() {
+export function import_class() {
     const fromAll = new AllImports.SomeClass("from-all")
     const fromSingle = new SingleImport("SingleImport")
  

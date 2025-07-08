@@ -47,25 +47,28 @@ func Test_Engine_ExtendedOut(t *testing.T) {
 
 		SomeMap: map[string]any{"items": []any{"one", false, "two", "three"}},
 	}
+
 	for _, ef := range toCheck {
-		buf.Reset()
-		testName := strings.TrimSuffix(ef, ".expected")
+		t.Run(ef, func(t *testing.T) {
+			buf.Reset()
+			testName := strings.TrimSuffix(ef, ".expected")
 
-		expected, err := fs.ReadFile(testDataFS, ef)
-		if err != nil {
-			t.Errorf("error while loading result file %s", testName)
-		}
-		err = engine.Render(buf, testName, testModel)
-
-		if err != nil {
-			var waxError wax.Error
-			if errors.As(err, &waxError) == false {
-				t.Errorf("wax must always return WaxError")
+			expected, err := fs.ReadFile(testDataFS, ef)
+			if err != nil {
+				t.Errorf("error while loading result file %s", testName)
 			}
-			t.Errorf("\n-----------------------\n !!!!!!!!!!!!!! Errored %s\n%+v", testName, err)
-		} else {
-			actual := buf.String()
-			compareHTML(t, testName, string(expected), actual)
-		}
+			err = engine.Render(buf, testName, testModel)
+
+			if err != nil {
+				var waxError wax.Error
+				if errors.As(err, &waxError) == false {
+					t.Errorf("wax must always return WaxError")
+				}
+				t.Errorf("\n-----------------------\n !!!!!!!!!!!!!! Errored %s\n%+v", testName, err)
+			} else {
+				actual := buf.String()
+				compareHTML(t, testName, string(expected), actual)
+			}
+		})
 	}
 }

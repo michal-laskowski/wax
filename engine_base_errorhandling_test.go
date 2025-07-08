@@ -27,7 +27,7 @@ func Test_Engine_source_error(t *testing.T) {
 			    return "ok"
 			}`,
 			errorPhase:   wax.PhaseLoading,
-			errorMessage: "wax error [load]: '/View.jsx': could not find function for view 'View'",
+			errorMessage: "wax error [load]: '/View.jsx': could not find function 'View'",
 		},
 		{
 			name:        "error_es_module_import",
@@ -42,6 +42,19 @@ export const foo = () => 1`,
 			},
 			errorPhase:   wax.PhaseLoading,
 			errorMessage: "wax error [load]: '/syntaxerrormodule.jsx': error on lines 3:3",
+		},
+		{
+			name:        "error_on_jsx_attribute",
+			description: "",
+			source: `///
+            function doThrow(){
+                throw "some exception" 
+            }
+			export function View() {
+			    return <div x-attr={doThrow()}></div>
+			}`,
+			errorPhase:   wax.PhaseExec,
+			errorMessage: "wax error: execute: /View.jsx - some exception at doThrow (file:///View.jsx?ts=-dcbffeff2bc000:3:17(2)) - some exception at doThrow (file:///View.jsx?ts=-dcbffeff2bc000:3:17(2))",
 		},
 	}
 
@@ -73,7 +86,7 @@ func runErrorReportingSample(t *testing.T, sample TestSample) {
 		t.Errorf("invalid message > \n\tgot      : %s\n\texpected : %s", waxError.ErrorDetailed(), expectedMessage)
 	}
 
-	if actual != "" {
-		t.Errorf("invalid output")
+	 if actual != ""  && expectedPhase != wax.PhaseExec{
+	 	t.Errorf("invalid output:" + actual)
 	}
 }

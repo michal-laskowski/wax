@@ -32,4 +32,7 @@
     <sample-08 v="&#39;bar&#39;"></sample-08>
     <sample-09 v="&#34;bar\&#34;"></sample-09>
     <sample-10 v="bar\`"></sample-10>
+    <sample-11 v="&#39;bar&#39;"></sample-11>
+    <sample-12 v="&#34;bar`&#34;&#39;"></sample-12>
+    <sample-13 v="bar`&#34;&#39;"></sample-13>
 </in-attr>

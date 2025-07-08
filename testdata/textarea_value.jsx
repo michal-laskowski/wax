@@ -3,6 +3,7 @@ export function textarea_value() {
     return (
         <>
             <textarea value="abc" />
+            <textarea >{`a&b"c`}</textarea>
             <textarea value={`a&b"c`} />
             <textarea value="true" />
             <textarea value={value} />
@@ -10,6 +11,10 @@ export function textarea_value() {
             <textarea value="" />
             <textarea value={""} />
             <textarea value={"    "} />
+            <textarea value={"a\nb"} />
+            <textarea value={"c\nd"}></textarea>
+            <textarea>{"e\nf"}</textarea>
+            <textarea>{"a<></>b`"}</textarea>
         </>
     );
 }
