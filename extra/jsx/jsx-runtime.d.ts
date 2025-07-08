@@ -718,7 +718,7 @@ export namespace JSX {
     }
     interface TextareaHTMLAttributes extends HTMLAttributes {
         autocomplete?: string | undefined
-        cols?: number | undefined
+        cols?: string | number | undefined
         dirname?: string | undefined
         disabled?: boolean | undefined
         form?: string | undefined
@@ -728,7 +728,7 @@ export namespace JSX {
         placeholder?: string | undefined
         readonly?: boolean | undefined
         required?: boolean | undefined
-        rows?: number | undefined
+        rows?: string | number | undefined
         value?: string | ReadonlyArray<string> | number | undefined
         wrap?: string | undefined
     }
